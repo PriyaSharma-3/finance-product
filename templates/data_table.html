@@ -137,13 +137,11 @@
 </div>
 
 <!-- Revenue Report Table -->
+<!-- Revenue Report Table -->
 <div class="row">
     <div class="col-12">
         <br><br><br>
         <h4>Revenue Report for {{ date }}</h4>
-
-        <!-- Button to add new column -->
-        
 
         <!-- Table to display revenues -->
         <table class="table table-bordered">
@@ -151,29 +149,43 @@
                 <tr bgcolor="#20c997" id="tableHeader">
                     <th>Revenue</th>
                     <th>Amount (INR)</th>
-                    <th>Transaction Date</th> 
+                    <th>Transaction Date</th>
+                    <th>Invoice</th>
+                    <th>Action</th>
                 </tr>
-                
             </thead>
-            <button class="btn btn-success mb-3" id="addColumnButton">+</button>
             <tbody id="revenueTableBody">
                 <!-- Loop to insert rows of revenue data -->
-                {% for remark, amount, transaction_date in revenues %}
-                <tr class="revenue-row">
+                {% for remark, amount, transaction_date, transaction_id, invoice_data in revenues %}
+                <tr class="revenue-row" data-remark="{{ remark }}">
                     <td>{{ remark }}</td>
                     <td>{{ amount }}</td>
                     <td>{{ transaction_date }}</td>
+                    <td id="invoice-category-{{ transaction_id }}">
+                        {% if invoice_data %}
+                            {% for invoice_filename in invoice_data %}
+                                <a href="/invoice/{{ invoice_filename }}" target="_blank">{{ invoice_filename }}</a><br>
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button type="button" onclick="showSelect('invoice', '{{ transaction_id }}', '{{ invoice_data | tojson | safe }}')">Edit Invoice</button>
+                    </td>
                 </tr>
                 {% endfor %}
                 <tr class="total">
                     <td>Total Revenue</td>
                     <td id="totalRevenue">{{ total_revenue_amount }}</td>
                     <td></td>
+                    <td></td>
+                    <td></td>
                 </tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- Other tables for loans and expenses -->
 
 
 <div class="row">
@@ -264,7 +276,7 @@
         const cell = document.getElementById(`${type}-category-${transactionId}`);
         
         // Fetch options from the backend
-        const response = await fetch(type === 'expense' ? '/get-expense-categories' : '/invoices');
+        const response = await fetch(type === 'expense' ? '/get-expense-categories' : `/invoices?date={{ date }}`);
         const options = await response.json();
     
         console.log("Fetched options:", options); // Debug log
@@ -295,8 +307,6 @@
         cell.innerHTML = selectHTML;
     }
 </script>
-
-
 
 
 <div class="row mt-5">

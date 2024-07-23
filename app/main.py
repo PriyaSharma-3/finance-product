@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, UploadFile, File, Form, status, HTTPException
+from fastapi import FastAPI, Depends, UploadFile, File, Form, status, HTTPException, Query
 from typing import List
 import pandas as pd
 from dotenv import load_dotenv
@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 import json
+import math
 
 app = FastAPI()
 
@@ -50,11 +51,6 @@ async def get_login(request: Request):
 @app.get("/logout/", response_class=HTMLResponse)
 async def get_logout(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
-
-# @app.get("/dashboard")
-# async def get_dashboard(request: Request):
-#     return templates.TemplateResponse("dashboard.html", {"request": request, 'output': "Login Successfully"})
-
 
 @app.get("/search/", response_class=HTMLResponse)
 async def search(request: Request):
@@ -202,96 +198,6 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
         return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "Excel file uploaded successfully!"})
     else:
         return templates.TemplateResponse("upload_excel.html", {"request": request, "error": "Unsupported file format. Only PDF, XLS, XLSX, and CSV are allowed."})
-    
-    
-@app.post("/data_table", response_class=HTMLResponse)
-async def data_table(request: Request, date: str = Form(...), db: Session = Depends(get_db)):
-    print(f"Received date: {date}")
-
-    rows = db.query(Finance).filter(Finance.month==date)
-    
-    revenues = []
-    loans = []
-    expense = []
-
-    total_revenue_amount = 0.0
-    total_loan_amount = 0.0
-    total_expenses_amount = 0.0
-
-    for row in rows:
-        remark = row.transaction_remarks
-        deposit_amount = row.deposit_amt
-        withdrawal_amount = row.withdrawal_amt
-        transaction_date =  row.transaction_date
-        if isinstance(transaction_date, datetime):
-            transaction_date = transaction_date.strftime('%d-%m-%Y')
-        elif isinstance(transaction_date, str):
-            transaction_date = datetime.strptime(transaction_date, '%Y-%m-%d %H:%M:%S').strftime('%d-%m-%Y')
-            
-        transaction_id = row.transaction_id
-        expenses =  row.expenses if row.expenses is not None else ''
-        
-        # Retrieve the invoices associated with the current transaction
-        invoice_data = []
-        if row.invoices_filename:
-            invoice_data = json.loads(row.invoices_filename)
-            
-        # # Retrieve the invoices associated with this date
-        # invoices = db.query(Invoice).filter(Invoice.month == date).all()
-        # invoice_data = [(invoice.id, invoice.invoice_filename) for invoice in invoices] if invoices else []
-
-        if isinstance(remark, str):
-            if deposit_amount is not None:
-                if "loan" not in remark.lower():
-                    revenues.append((remark, deposit_amount, transaction_date))
-                    try:
-                        deposit_value = float(deposit_amount)
-                        total_revenue_amount += deposit_value
-                    except ValueError:
-                        print(f"Invalid deposit amount '{deposit_amount}' in row {row}")
-
-                else:
-                    loans.append((remark, deposit_amount, transaction_date))
-                    try:
-                        deposit_value = float(deposit_amount)
-                        total_loan_amount += deposit_value
-                    except ValueError:
-                        print(f"Invalid deposit amount '{deposit_amount}' in row {row}")
-
-            if withdrawal_amount is not None:
-                expense.append((remark, withdrawal_amount, transaction_date,transaction_id,expenses,invoice_data))
-                try:
-                    withdrawal_value = float(withdrawal_amount)
-                    total_expenses_amount += withdrawal_value
-                except ValueError:
-                    print(f"Invalid withdrawal amount '{withdrawal_amount}' in row {row}")
-
-    profit = total_revenue_amount - total_expenses_amount
-    tax = profit * 0.25  # Calculate 25% of the profit
-    cess = tax * 0.4
-    totalTax = tax + cess
-    profit_after_tax = profit - totalTax
-
-    context = {
-        "request": request,
-        "date": date,
-        "revenues": revenues,
-        "total_revenue_amount": total_revenue_amount,
-        "loans": loans,
-        "total_loan_amount": total_loan_amount,
-        "expenses": expense,
-        "total_expenses_amount": total_expenses_amount,
-        "profit": profit,
-        "profit_after_tax": profit_after_tax,
-        "tax": tax,
-        "cess": cess,
-        "totalTax": totalTax,
-    }
-
-    # Print the context to debug
-    print(context)
-
-    return templates.TemplateResponse("data_table.html", context)
 
 
 
@@ -320,14 +226,15 @@ async def submit_expense(request: Request, db: Session = Depends(get_db), expens
 
 
 @app.get("/invoices")
-async def get_invoices(db: Session = Depends(get_db)):
-    invoices = db.query(Invoice.id, Invoice.invoice_filename).all()
+async def get_invoices(db: Session = Depends(get_db), date: str = Query(...)):
+    invoices = db.query(Invoice.id, Invoice.invoice_filename).join(Finance, Finance.month == Invoice.month).filter(Finance.month == date).all()
     invoices_list = [[invoice.id, invoice.invoice_filename] for invoice in invoices]
     return JSONResponse(content=invoices_list)
 
-@app.get("/invoice/{invoice_id}")
-async def view_invoice(invoice_id: int, db: Session = Depends(get_db)):
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+
+@app.get("/invoice/{invoice_filename}")
+async def view_invoice(invoice_filename: str, db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).filter(Invoice.invoice_filename == invoice_filename).first()
     if not invoice:
         return {"error": "Invoice not found"}
 
@@ -335,7 +242,90 @@ async def view_invoice(invoice_id: int, db: Session = Depends(get_db)):
     return StreamingResponse(BytesIO(pdf_content), media_type="application/pdf", headers={
         "Content-Disposition": f'inline; filename="{invoice.invoice_filename}"'
     })
+
+
+@app.post("/data_table", response_class=HTMLResponse)
+async def data_table(request: Request, date: str = Form(...), db: Session = Depends(get_db)):
+    print(f"Received date: {date}")
+
+    rows = db.query(Finance).filter(Finance.month == date)
     
+    revenues = []
+    loans = []
+    expenses = []
+
+    total_revenue_amount = 0.0
+    total_loan_amount = 0.0
+    total_expenses_amount = 0.0
+
+    for row in rows:
+        remark = row.transaction_remarks
+        deposit_amount = row.deposit_amt
+        withdrawal_amount = row.withdrawal_amt
+        transaction_date = row.transaction_date
+        if isinstance(transaction_date, datetime):
+            transaction_date = transaction_date.strftime('%d-%m-%Y')
+        elif isinstance(transaction_date, str):
+            transaction_date = datetime.strptime(transaction_date, '%Y-%m-%d %H:%M:%S').strftime('%d-%m-%Y')
+            
+        transaction_id = row.transaction_id
+        expense_category = row.expenses if row.expenses is not None else ''
+        invoice_data = json.loads(row.invoices_filename) if row.invoices_filename else []
+
+        if isinstance(remark, str):
+            if deposit_amount is not None:
+                if "loan" not in remark.lower():
+                    revenues.append((remark, deposit_amount, transaction_date, transaction_id, invoice_data))
+                    try:
+                        deposit_value = float(deposit_amount)
+                        total_revenue_amount += deposit_value
+                    except ValueError:
+                        print(f"Invalid deposit amount '{deposit_amount}' in row {row}")
+
+                else:
+                    loans.append((remark, deposit_amount, transaction_date))
+                    try:
+                        deposit_value = float(deposit_amount)
+                        total_loan_amount += deposit_value
+                    except ValueError:
+                        print(f"Invalid deposit amount '{deposit_amount}' in row {row}")
+
+            if withdrawal_amount is not None:
+                expenses.append((remark, withdrawal_amount, transaction_date, transaction_id, expense_category, invoice_data))
+                try:
+                    withdrawal_value = float(withdrawal_amount)
+                    total_expenses_amount += withdrawal_value
+                except ValueError:
+                    print(f"Invalid withdrawal amount '{withdrawal_amount}' in row {row}")
+
+    profit = total_revenue_amount - total_expenses_amount
+    tax = profit * 0.25
+    cess = tax * 0.4
+    totalTax = tax + cess
+    profit_after_tax = profit - totalTax
+
+    context = {
+        "request": request,
+        "date": date,
+        "revenues": revenues,
+        "total_revenue_amount": total_revenue_amount,
+        "loans": loans,
+        "total_loan_amount": total_loan_amount,
+        "expenses": expenses,
+        "total_expenses_amount": total_expenses_amount,
+        "profit": profit,
+        "profit_after_tax": profit_after_tax,
+        "tax": tax,
+        "cess": cess,
+        "totalTax": totalTax
+    }
+
+    print(context)
+
+    return templates.TemplateResponse("data_table.html", context)
+
+
+  
 @app.post("/save-transaction", response_class=HTMLResponse)
 async def save_transaction(request: Request, transaction_id: str = Form(...), expense_category: str = Form(None), invoice_category: List[str] = Form(None), db: Session = Depends(get_db)):
     # Retrieve the transaction from the database
@@ -359,8 +349,10 @@ async def save_transaction(request: Request, transaction_id: str = Form(...), ex
 
     db.commit()
 
-    # Fetch all relevant data again to pass back to the template
+    # Fetch the month from the updated transaction to ensure correct context
     date = transaction.month
+
+    # Fetch all relevant data again to pass back to the template
     rows = db.query(Finance).filter(Finance.month == date).all()
 
     revenues = []
@@ -375,7 +367,7 @@ async def save_transaction(request: Request, transaction_id: str = Form(...), ex
         remark = row.transaction_remarks
         deposit_amount = row.deposit_amt
         withdrawal_amount = row.withdrawal_amt
-        transaction_date = row.transaction_date 
+        transaction_date = row.transaction_date
         if isinstance(transaction_date, datetime):
             transaction_date = transaction_date.strftime('%d-%m-%Y')
         elif isinstance(transaction_date, str):
@@ -388,7 +380,7 @@ async def save_transaction(request: Request, transaction_id: str = Form(...), ex
         if isinstance(remark, str):
             if deposit_amount is not None:
                 if "loan" not in remark.lower():
-                    revenues.append((remark, deposit_amount, transaction_date))
+                    revenues.append((remark, deposit_amount, transaction_date, row.transaction_id, invoice_data))
                     try:
                         deposit_value = float(deposit_amount)
                         total_revenue_amount += deposit_value
@@ -415,7 +407,7 @@ async def save_transaction(request: Request, transaction_id: str = Form(...), ex
     tax = profit * 0.25
     cess = tax * 0.4
     totalTax = tax + cess
-    profit_after_tax = profit - totalTax
+    profit_after_tax = profit - totalTax      
 
     return templates.TemplateResponse("data_table.html", {
         "request": request,
@@ -433,6 +425,7 @@ async def save_transaction(request: Request, transaction_id: str = Form(...), ex
         "totalTax": totalTax,
         "success": "Transaction updated successfully!"
     })
+
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
