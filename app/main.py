@@ -2,12 +2,10 @@ from fastapi import FastAPI, Depends, UploadFile, File, Form, status, HTTPExcept
 from typing import List
 import pandas as pd
 from dotenv import load_dotenv
-import os , io
-from app import schemas
+import os
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 from fastapi.responses import RedirectResponse,HTMLResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -18,13 +16,11 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 import json
-import math
 
 app = FastAPI()
 
 # Load environment variables
 load_dotenv()
-
 
 class ExpenseCategory(BaseModel):
     expense: str
@@ -202,7 +198,7 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
 
 
 @app.post("/add-expense-category", response_model=ExpenseCategory)
-async def add_expense_category(expense: ExpenseCategory, db: Session = Depends(get_db)):
+async def add_expense_category(request: Request,expense: ExpenseCategory, db: Session = Depends(get_db)):
     existing_expense = db.query(Expenses).filter(Expenses.expense == expense.expense).first()
     if existing_expense:
         raise HTTPException(status_code=400, detail="Expense category already exists")
@@ -210,8 +206,7 @@ async def add_expense_category(expense: ExpenseCategory, db: Session = Depends(g
     new_expense = Expenses(expense=expense.expense)
     db.add(new_expense)
     db.commit()
-    db.refresh(new_expense)
-    return new_expense
+    return templates.TemplateResponse("add_expenses.html", {"request": request, "success": "Expense Added successfully!"})
 
 @app.get("/get-expense-categories", response_model=List[str])
 async def get_expense_categories(db: Session = Depends(get_db)):

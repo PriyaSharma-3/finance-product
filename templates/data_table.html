@@ -65,6 +65,15 @@
         .dropdown-checkbox .show {
             display: block;
         }
+
+        .dropdown-select {
+            margin-right: 1rem; /* Adjust as needed */
+        }
+        
+        .save-button {
+            margin-top: 1rem; /* Space above the button */
+        }
+        
     </style>
 
 </head>
@@ -137,11 +146,22 @@
 </div>
 
 <!-- Revenue Report Table -->
-<!-- Revenue Report Table -->
 <div class="row">
     <div class="col-12">
         <br><br><br>
         <h4>Revenue Report for {{ date }}</h4>
+
+        <!-- Wrapper div to position the dropdown on the right -->
+        <div class="dropdown-wrapper">
+            <label for="rowsPerPage">Show:</label>
+            <select id="rowsPerPage" onchange="updateTableRows('revenueTableBody')">
+                <option value="5">5 rows</option>
+                <option value="10">10 rows</option>
+                <option value="15">15 rows</option>
+                <option value="20">20 rows</option>
+                <option value="all">All rows</option>
+            </select>
+        </div>
 
         <!-- Table to display revenues -->
         <table class="table table-bordered">
@@ -155,7 +175,6 @@
                 </tr>
             </thead>
             <tbody id="revenueTableBody">
-                <!-- Loop to insert rows of revenue data -->
                 {% for remark, amount, transaction_date, transaction_id, invoice_data in revenues %}
                 <tr class="revenue-row" data-remark="{{ remark }}">
                     <td>{{ remark }}</td>
@@ -169,7 +188,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button type="button" onclick="showSelect('invoice', '{{ transaction_id }}', '{{ invoice_data | tojson | safe }}')">Edit Invoice</button>
+                        <button type="button" onclick="showSelect('invoice', '{{ transaction_id }}', '{{ invoice_data | tojson | safe }}')"><i class="fas fa-file-alt"></i></button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -187,13 +206,24 @@
 
 <!-- Other tables for loans and expenses -->
 
-
 <div class="row">
     <div class="col-12">
         <br><br><br>
         <h4>Loan Report for {{ date }}</h4>
 
-        <!-- Table to display revenues -->
+        <!-- Wrapper div to position the dropdown on the right -->
+        <div class="dropdown-wrapper">
+            <label for="rowsPerPageLoan">Show:</label>
+            <select id="rowsPerPageLoan" onchange="updateTableRows('loanTableBody')">
+                <option value="5">5 rows</option>
+                <option value="10">10 rows</option>
+                <option value="15">15 rows</option>
+                <option value="20">20 rows</option>
+                <option value="all">All rows</option>
+            </select>
+        </div>
+
+        <!-- Table to display loans -->
         <table class="table table-bordered">
             <thead>
                 <tr bgcolor="#20c997">
@@ -204,7 +234,6 @@
             </thead>
             <br>
             <tbody id="loanTableBody">
-                <!-- Loop to insert rows of revenue data -->
                 {% for remark, amount, transaction_date in loans %}
                 <tr class="revenue-row" data-remark="{{ remark }}">
                     <td>{{ remark }}</td>
@@ -221,11 +250,22 @@
     </div>
 </div>
 
-
 <div class="row">
     <div class="col-12">
         <br><br><br>
         <h4>Expenses Report for {{ date }}</h4>
+
+        <!-- Wrapper div to position the dropdown on the right -->
+        <div class="dropdown-wrapper">
+            <label for="rowsPerPageExpense">Show:</label>
+            <select id="rowsPerPageExpense" onchange="updateTableRows('expenseTableBody')">
+                <option value="5">5 rows</option>
+                <option value="10">10 rows</option>
+                <option value="15">15 rows</option>
+                <option value="20">20 rows</option>
+                <option value="all">All rows</option>
+            </select>
+        </div>
 
         <!-- Table to display expenses -->
         <table class="table table-bordered">
@@ -240,7 +280,6 @@
                 </tr>
             </thead>
             <tbody id="expenseTableBody">
-                <!-- Loop to insert rows of expense data -->
                 {% for remark, amount, transaction_date, transaction_id, expenses, invoice_data in expenses %}
                 <tr class="expense-row" data-remark="{{ remark }}">
                     <td>{{ remark }}</td>
@@ -257,9 +296,14 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button type="button" onclick="showSelect('expense', '{{ transaction_id }}', '{{ expenses }}')">Edit Expense</button>
-                        <button type="button" onclick="showSelect('invoice', '{{ transaction_id }}', '{{ invoice_data | tojson | safe }}')">Edit Invoice</button>
+                        <button type="button" onclick="showSelect('expense', '{{ transaction_id }}', '{{ expenses }}')" title="Add Expense">
+                            <i class="fas fa-plus-circle"></i>
+                        </button>
+                        <button type="button" onclick="showSelect('invoice', '{{ transaction_id }}', '{{ invoice_data | tojson | safe }}')" title="Add Invoice">
+                            <i class="fas fa-file-alt"></i>
+                        </button>
                     </td>
+                    
                 </tr>
                 {% endfor %}
                 <tr class="total">
@@ -271,7 +315,33 @@
     </div>
 </div>
 
+<style>
+    .dropdown-wrapper {
+        text-align: right;
+        margin-bottom: 1rem;
+    }
+</style>
+
 <script>
+    function updateTableRows(tableId) {
+        const rowsPerPage = document.getElementById(`rowsPerPage${tableId === 'revenueTableBody' ? '' : tableId.includes('Loan') ? 'Loan' : 'Expense'}`).value;
+        const tableBody = document.getElementById(tableId);
+        const rows = tableBody.querySelectorAll('tr:not(.total)'); // Exclude the total row
+        
+        let rowsToShow = parseInt(rowsPerPage);
+        if (isNaN(rowsToShow)) {
+            rowsToShow = rows.length; // Show all rows if "all" is selected
+        }
+
+        rows.forEach((row, index) => {
+            if (index < rowsToShow) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
     async function showSelect(type, transactionId, currentData) {
         const cell = document.getElementById(`${type}-category-${transactionId}`);
         
@@ -279,8 +349,6 @@
         const response = await fetch(type === 'expense' ? '/get-expense-categories' : `/invoices?date={{ date }}`);
         const options = await response.json();
     
-        console.log("Fetched options:", options); // Debug log
-        
         let selectHTML = `<form id="form-${transactionId}" action="/save-transaction" method="post">
             <input type="hidden" name="transaction_id" value="${transactionId}">`;
     
@@ -292,7 +360,6 @@
             selectHTML += `</select>`;
         } else if (type === 'invoice') {
             currentData = JSON.parse(currentData);
-            console.log("Current data parsed:", currentData); // Debug log
             selectHTML += `<select name="invoice_category" multiple>`;
             options.forEach(option => {
                 const isSelected = currentData.includes(option[1]);
@@ -306,7 +373,14 @@
     
         cell.innerHTML = selectHTML;
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateTableRows('revenueTableBody');
+        updateTableRows('loanTableBody');
+        updateTableRows('expenseTableBody');
+    });
 </script>
+
 
 
 <div class="row mt-5">
