@@ -198,7 +198,7 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
 
 
 @app.post("/add-expense-category", response_model=ExpenseCategory)
-async def add_expense_category(request: Request,expense: ExpenseCategory, db: Session = Depends(get_db)):
+async def add_expense_category(expense: ExpenseCategory, db: Session = Depends(get_db)):
     existing_expense = db.query(Expenses).filter(Expenses.expense == expense.expense).first()
     if existing_expense:
         raise HTTPException(status_code=400, detail="Expense category already exists")
@@ -206,7 +206,8 @@ async def add_expense_category(request: Request,expense: ExpenseCategory, db: Se
     new_expense = Expenses(expense=expense.expense)
     db.add(new_expense)
     db.commit()
-    return templates.TemplateResponse("add_expenses.html", {"request": request, "success": "Expense Added successfully!"})
+    db.refresh(new_expense)
+    return new_expense
 
 @app.get("/get-expense-categories", response_model=List[str])
 async def get_expense_categories(db: Session = Depends(get_db)):
@@ -222,7 +223,7 @@ async def submit_expense(request: Request, db: Session = Depends(get_db), expens
 
 @app.get("/invoices")
 async def get_invoices(db: Session = Depends(get_db), date: str = Query(...)):
-    invoices = db.query(Invoice.id, Invoice.invoice_filename).join(Finance, Finance.month == Invoice.month).filter(Finance.month == date).all()
+    invoices = db.query(Invoice.id, Invoice.invoice_filename).filter(Invoice.month == date).all()
     invoices_list = [[invoice.id, invoice.invoice_filename] for invoice in invoices]
     return JSONResponse(content=invoices_list)
 
