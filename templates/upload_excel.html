@@ -130,19 +130,26 @@
             <div class="renew_report_left">
                 <h4 for="date" class="f_s_19 f_w_600 color_theme2 mb-0">Select Month and Upload File:</h4>
                 <br>
-                <input type="month" id="date" name="date" class="color_gray2 f_s_12 f_w_600" data-language="en" style="width: 150px; height: 30px;margin-left: 50px;">
-                <br><br><br>
-                <div class="wrapper">
-                    <div class="file-upload">
-                        <input type="file" id="uploadExcel" name="file" />
-                        <label for="uploadExcel" class="file-upload-label">
-                            <i class="fa fa-arrow-up"></i>
-                        </label>
+                <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <input type="month" id="dates" name="date" class="form-control" data-language="en" >
                     </div>
                 </div>
-
                 <br><br><br>
-                <div class="create_report_btn" style="margin-left: 70px;">
+                <div class="col-md-6">
+                    <div class="wrapper">
+                        <div class="file-upload">
+                            <input type="file" id="uploadExcel" name="file" />
+                            <label for="uploadExcel" class="file-upload-label">
+                                <i class="fa fa-arrow-up"></i>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                </div>
+     
+                <div class="create_report_btn">
                     <button type="submit" class="btn_1 mt-1 mb-1">Submit</button>
                 </div>
             </div>
