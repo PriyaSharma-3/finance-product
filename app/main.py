@@ -71,7 +71,41 @@ async def login(request: Request, username: str = Form(...), password: str = For
         return templates.TemplateResponse("index.html", {"request": request, "error": error_message}, status_code=status.HTTP_401_UNAUTHORIZED)
     
 
+@app.post("/upload_pdf")
+async def upload(request: Request, date: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
+    # Validate the format if needed
+    try:
+        datetime.strptime(date, "%Y-%m")
+    except ValueError:
+        return JSONResponse(content={"error": "Invalid date format. Use YYYY-MM."}, status_code=400)
+    
+    # Determine file extension
+    file_extension = file.filename.split('.')[-1].lower()
 
+    if file_extension == 'pdf':
+        pdf_content = await file.read()  # Read PDF content as bytes
+
+        # Save the PDF content to the database
+        new_invoice = Invoice(month=date, invoice_pdf=pdf_content, invoice_filename=file.filename)
+        db.add(new_invoice)
+        db.commit()
+
+        return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "PDF file uploaded and link saved successfully!"})
+    
+    elif file_extension in ['xls', 'xlsx', 'csv']:
+        excel_content = await file.read()  # Read Excel content as bytes
+
+        # Save the Excel content to the database (assuming you want to handle it similarly)
+        new_invoice = Invoice(month=date, invoice_pdf=excel_content, invoice_filename=file.filename)
+        db.add(new_invoice)
+        db.commit()
+
+        return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "Excel file uploaded and link saved successfully!"})
+    else:
+        return JSONResponse(content={"error": "Unsupported file type. Only PDF and Excel files are allowed."}, status_code=400)
+
+    
+    
 @app.post("/upload")
 async def upload(request: Request, date: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
     
@@ -84,18 +118,18 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
     # Determine file extension
     file_extension = file.filename.split('.')[-1]
 
-    if file_extension == 'pdf':
-        pdf_content = await file.read()  # Read PDF content as bytes
+    # if file_extension == 'pdf':
+    #     pdf_content = await file.read()  # Read PDF content as bytes
 
-        # Save the PDF content to the database
-        new_invoice = Invoice(month=date, invoice_pdf=pdf_content,invoice_filename=file.filename)
-        db.add(new_invoice)
-        db.commit()
+    #     # Save the PDF content to the database
+    #     new_invoice = Invoice(month=date, invoice_pdf=pdf_content,invoice_filename=file.filename)
+    #     db.add(new_invoice)
+    #     db.commit()
 
-        return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "PDF file uploaded and link saved successfully!"})
+    #     return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "PDF file uploaded and link saved successfully!"})
 
     # Handle Excel files
-    elif file_extension in ['xls', 'xlsx', 'csv']:
+    if file_extension in ['xls', 'xlsx', 'csv']:
         
         # Save the date in the database
         new_entry = Finance(month=date)
@@ -232,10 +266,18 @@ async def get_invoices(db: Session = Depends(get_db), date: str = Query(...)):
 async def view_invoice(invoice_filename: str, db: Session = Depends(get_db)):
     invoice = db.query(Invoice).filter(Invoice.invoice_filename == invoice_filename).first()
     if not invoice:
-        return {"error": "Invoice not found"}
+        raise HTTPException(status_code=404, detail="Invoice not found")
 
-    pdf_content = invoice.invoice_pdf
-    return StreamingResponse(BytesIO(pdf_content), media_type="application/pdf", headers={
+    file_extension = invoice.invoice_filename.split('.')[-1].lower()
+    
+    if file_extension == 'pdf':
+        media_type = "application/pdf"
+    elif file_extension in {'xlsx', 'xls', 'xlsm'}:
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    
+    return StreamingResponse(BytesIO(invoice.invoice_pdf), media_type=media_type, headers={
         "Content-Disposition": f'inline; filename="{invoice.invoice_filename}"'
     })
 

@@ -117,45 +117,97 @@
 
 </div>
 
-<form action="/upload" method="post" enctype="multipart/form-data">
-    <div class="white_card mb_20 default_border_1px">
-        <br>
-        {% if success %}
-        <div class="success-message" style="color: green;margin-left: 50px;">
-            {{ success }}
-        </div>
-        {% endif %}
+<div>
 
-        <div class="white_card_body renew_report_card d-flex align-items-center justify-content-between flex-wrap">
-            <div class="renew_report_left">
-                <h4 for="date" class="f_s_19 f_w_600 color_theme2 mb-0">Select Month and Upload File:</h4>
-                <br>
-                <div class="row">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <input type="month" id="dates" name="date" class="form-control" data-language="en" >
+    <div class="container">
+        <div class="row">
+          <div class="col">
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <div class="white_card mb_20 default_border_1px">
+                    <br>
+                    {% if success %}
+                    <div class="success-message" style="color: green;margin-left: 50px;">
+                        {{ success }}
                     </div>
-                </div>
-                <br><br><br>
-                <div class="col-md-6">
-                    <div class="wrapper">
-                        <div class="file-upload">
-                            <input type="file" id="uploadExcel" name="file" />
-                            <label for="uploadExcel" class="file-upload-label">
-                                <i class="fa fa-arrow-up" style="font-size:90px !important;"></i>
-                            </label>
+                    {% endif %}
+            
+                    <div class="white_card_body renew_report_card d-flex align-items-center justify-content-between flex-wrap">
+                        <div class="renew_report_left">
+                            <h4 for="date" class="f_s_19 f_w_600 color_theme2 mb-0">Select Month and Upload Statement:</h4>
+                            <br>
+                            <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <input type="month" id="dates" name="date" class="form-control" data-language="en" >
+                                </div>
+                            </div>
+                            <br><br><br>
+                            <div class="col-md-6">
+                                <div class="wrapper">
+                                    <div class="file-upload">
+                                        <input type="file" id="uploadExcel" name="file" />
+                                        <label for="uploadExcel" class="file-upload-label">
+                                            <i class="fa fa-arrow-up" style="font-size:90px !important;"></i>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                 
+                            <div class="create_report_btn">
+                                <button type="submit" class="btn_1 mt-1 mb-1">Submit</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+            </form>
+          </div>
+          <div class="col">
+            <form action="/upload_pdf" method="post" enctype="multipart/form-data">
+                <div class="white_card mb_20 default_border_1px">
+                    <br>
+                    {% if success %}
+                    <div class="success-message" style="color: green;margin-left: 50px;">
+                        {{ success }}
+                    </div>
+                    {% endif %}
+            
+                    <div class="white_card_body renew_report_card d-flex align-items-center justify-content-between flex-wrap">
+                        <div class="renew_report_left">
+                            <h4 for="date" class="f_s_19 f_w_600 color_theme2 mb-0">Select Month and Upload Invoice:</h4>
+                            <br>
+                            <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <input type="month" id="dates" name="date" class="form-control" data-language="en" >
+                                </div>
+                            </div>
+                            <br><br><br>
+                            <div class="col-md-6">
+                                <div class="wrapper">
+                                    <div class="file-upload">
+                                        <input type="file" id="uploadExcel" name="file" />
+                                        <label for="uploadExcel" class="file-upload-label">
+                                            <i class="fa fa-arrow-up" style="font-size:90px !important;"></i>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                 
+                            <div class="create_report_btn">
+                                <button type="submit" class="btn_1 mt-1 mb-1">Submit</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-     
-                <div class="create_report_btn">
-                    <button type="submit" class="btn_1 mt-1 mb-1">Submit</button>
-                </div>
-            </div>
+            </form>
+          </div>
         </div>
-    </div>
-</form>
+        
+      </div>
+
+
 
 <style>
     html{
