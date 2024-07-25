@@ -90,7 +90,7 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
         db.add(new_invoice)
         db.commit()
 
-        return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "PDF file uploaded and link saved successfully!"})
+        return templates.TemplateResponse("upload_excel.html", {"request": request, "successes": "PDF file uploaded and link saved successfully!"})
     
     elif file_extension in ['xls', 'xlsx', 'csv']:
         excel_content = await file.read()  # Read Excel content as bytes
@@ -100,7 +100,7 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
         db.add(new_invoice)
         db.commit()
 
-        return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "Excel file uploaded and link saved successfully!"})
+        return templates.TemplateResponse("upload_excel.html", {"request": request, "successes": "Excel file uploaded and link saved successfully!"})
     else:
         return JSONResponse(content={"error": "Unsupported file type. Only PDF and Excel files are allowed."}, status_code=400)
 
@@ -117,16 +117,6 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
     
     # Determine file extension
     file_extension = file.filename.split('.')[-1]
-
-    # if file_extension == 'pdf':
-    #     pdf_content = await file.read()  # Read PDF content as bytes
-
-    #     # Save the PDF content to the database
-    #     new_invoice = Invoice(month=date, invoice_pdf=pdf_content,invoice_filename=file.filename)
-    #     db.add(new_invoice)
-    #     db.commit()
-
-    #     return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "PDF file uploaded and link saved successfully!"})
 
     # Handle Excel files
     if file_extension in ['xls', 'xlsx', 'csv']:
@@ -227,7 +217,7 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
         # Return a success message in the template
         return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "Excel file uploaded successfully!"})
     else:
-        return templates.TemplateResponse("upload_excel.html", {"request": request, "error": "Unsupported file format. Only PDF, XLS, XLSX, and CSV are allowed."})
+        return templates.TemplateResponse("upload_excel.html", {"request": request, "error": "Unsupported file format. Only XLS, XLSX, and CSV are allowed."})
 
 
 

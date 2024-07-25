@@ -138,7 +138,7 @@
                             <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <input type="month" id="dates" name="date" class="form-control" data-language="en" >
+                                    <input type="month" id="dates" name="date" class="form-control" data-language="en" required>
                                 </div>
                             </div>
                             <br><br><br>
@@ -166,9 +166,9 @@
             <form action="/upload_pdf" method="post" enctype="multipart/form-data">
                 <div class="white_card mb_20 default_border_1px">
                     <br>
-                    {% if success %}
+                    {% if successes %}
                     <div class="success-message" style="color: green;margin-left: 50px;">
-                        {{ success }}
+                        {{ successes }}
                     </div>
                     {% endif %}
             
@@ -179,7 +179,7 @@
                             <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <input type="month" id="dates" name="date" class="form-control" data-language="en" >
+                                    <input type="month" id="dates" name="date" class="form-control" data-language="en" required>
                                 </div>
                             </div>
                             <br><br><br>
