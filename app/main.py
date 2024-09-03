@@ -124,31 +124,53 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
         # Save the date in the database
         new_entry = Finance(month=date)
         db.add(new_entry)
-        db.commit()
-
-        # Save the uploaded file
-        file_location = f"uploads/{file.filename}"
-        os.makedirs("uploads", exist_ok=True)
-        with open(file_location, "wb+") as file_object:
-            file_object.write(file.file.read())
+        db.flush()
 
         # Read the Excel file
-        df = pd.read_excel(file_location)
+        df = pd.read_excel(file.filename)
 
-        # Find the correct column names
+        # Normalize column names
         columns = [col.strip().lower() for col in df.columns]
         print("Normalized column names:", columns)  # Debugging line
 
-        if 'transaction id' in columns and 'transaction remarks' in columns and 'deposit amt (inr)' in columns and 'withdrawal amt (inr)' in columns:
-            transaction_id_col = df.columns[columns.index('transaction id')]
-            value_date_col = df.columns[columns.index('value date')]
-            transaction_date_col = df.columns[columns.index('transaction date')]
-            transaction_posted_date_col = df.columns[columns.index('transaction posted date')]
-            cheque_no_col = df.columns[columns.index('cheque. no./ref. no.')]
-            transaction_remarks_col = df.columns[columns.index('transaction remarks')]
-            deposit_amt_col = df.columns[columns.index('deposit amt (inr)')]
-            withdrawal_amt_col = df.columns[columns.index('withdrawal amt (inr)')]
-            balance_col = df.columns[columns.index('balance (inr)')]
+        # Define possible column name variations
+        column_mappings = {
+            'transaction id': ['transaction id', 'tran_id'],
+            'value date': ['value date', 'value_date'],
+            'transaction date': ['transaction date', 'transaction_date'],
+            'transaction posted date': ['transaction posted date', 'transaction_posted_date'],
+            'cheque. no./ref. no.': ['cheque. no./ref. no.', 'cheque_no_ref_no'],
+            'transaction remarks': ['transaction remarks', 'transaction_remarks'],
+            'deposit amt (inr)': ['deposit amt (inr)', 'deposit_amt_inr'],
+            'withdrawal amt (inr)': ['withdrawal amt (inr)', 'withdrawal_amt_inr'],
+            'balance (inr)': ['balance (inr)', 'balance_inr']
+        }
+
+        # Match columns to their corresponding normalized names
+        matched_columns = {}
+        for key, possible_names in column_mappings.items():
+            for name in possible_names:
+                if name in columns:
+                    matched_columns[key] = df.columns[columns.index(name)]
+                    break
+
+        # Check if all required columns are present
+        required_columns = ['transaction id', 'value date', 'transaction date', 
+                            'transaction posted date', 'cheque. no./ref. no.', 
+                            'transaction remarks', 'deposit amt (inr)', 
+                            'withdrawal amt (inr)', 'balance (inr)']
+        
+        if all(col in matched_columns for col in required_columns):
+            transaction_id_col = matched_columns['transaction id']
+            value_date_col = matched_columns['value date']
+            transaction_date_col = matched_columns['transaction date']
+            transaction_posted_date_col = matched_columns['transaction posted date']
+            cheque_no_col = matched_columns['cheque. no./ref. no.']
+            transaction_remarks_col = matched_columns['transaction remarks']
+            deposit_amt_col = matched_columns['deposit amt (inr)']
+            withdrawal_amt_col = matched_columns['withdrawal amt (inr)']
+            balance_col = matched_columns['balance (inr)']
+            # Continue processing the data as needed...
 
         else:
             return templates.TemplateResponse("upload_excel.html", {"request": request, "error": "The required columns were not found in the uploaded file."})
@@ -168,13 +190,20 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
             deposit_amt = row[deposit_amt_col] if pd.notnull(row[deposit_amt_col]) else None
             balance = row[balance_col] if pd.notnull(row[balance_col]) else None
 
-            # Ensure withdrawal_amt and deposit_amt are either None or actual numbers
-            withdrawal_amt = withdrawal_amt if withdrawal_amt != '' else None
-            deposit_amt = deposit_amt if deposit_amt != '' else None
+            # Convert withdrawal_amt and deposit_amt to float, handling errors
+            try:
+                withdrawal_amt = float(withdrawal_amt) if withdrawal_amt else 0.0
+            except ValueError:
+                withdrawal_amt = 0.0  # or handle the error as needed
+
+            try:
+                deposit_amt = float(deposit_amt) if deposit_amt else 0.0
+            except ValueError:
+                deposit_amt = 0.0  # or handle the error as needed
 
             # Summing up for calculations
-            total_revenue_amount += deposit_amt if deposit_amt else 0
-            total_expenses_amount += withdrawal_amt if withdrawal_amt else 0
+            total_revenue_amount += deposit_amt
+            total_expenses_amount += withdrawal_amt
             
             # Debugging prints to check the values
             print(f"Processing row with transaction_id='{transaction_id}', transaction_remarks='{transaction_remarks}', deposit_amt={deposit_amt}, withdrawal_amt={withdrawal_amt}")

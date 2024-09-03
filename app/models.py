@@ -20,9 +20,9 @@ class Finance(Base):
     transaction_posted_date = Column(String, nullable=True)
     cheque_no_ref_no        = Column(String, nullable=True)
     transaction_remarks     = Column(String, nullable=True)
-    withdrawal_amt          = Column(Float, nullable=True)
-    deposit_amt             = Column(Float, nullable=True)
-    balance                 = Column(Float, nullable=True)
+    withdrawal_amt          = Column(String, nullable=True)
+    deposit_amt             = Column(String, nullable=True)
+    balance                 = Column(String, nullable=True)
     expenses                = Column(String, nullable=True)
     invoices_pdf             = Column(LargeBinary, nullable=True)
     invoices_filename        = Column(String, nullable=True)  # Add filename column
