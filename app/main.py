@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, UploadFile, File, Form, status, HTTPExcept
 from typing import List
 import pandas as pd
 from dotenv import load_dotenv
-import os
+import re
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 import json
+from difflib import get_close_matches
 
 app = FastAPI()
 
@@ -127,31 +128,32 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
         db.flush()
 
         # Read the Excel file
-        df = pd.read_excel(file.filename)
+        df = pd.read_excel(file.file)
 
         # Normalize column names
         columns = [col.strip().lower() for col in df.columns]
         print("Normalized column names:", columns)  # Debugging line
 
-        # Define possible column name variations
+        # Define possible column name variations with regex patterns
         column_mappings = {
-            'transaction id': ['transaction id', 'tran_id'],
-            'value date': ['value date', 'value_date'],
-            'transaction date': ['transaction date', 'transaction_date'],
-            'transaction posted date': ['transaction posted date', 'transaction_posted_date'],
-            'cheque. no./ref. no.': ['cheque. no./ref. no.', 'cheque_no_ref_no'],
-            'transaction remarks': ['transaction remarks', 'transaction_remarks'],
-            'deposit amt (inr)': ['deposit amt (inr)', 'deposit_amt_inr'],
-            'withdrawal amt (inr)': ['withdrawal amt (inr)', 'withdrawal_amt_inr'],
-            'balance (inr)': ['balance (inr)', 'balance_inr']
+            'transaction id': ['transaction id', 'tran id'],
+            'value date': ['value date', 'val date'],
+            'transaction date': ['transaction date', 'trans date'],
+            'transaction posted date': ['transaction posted date', 'trans posted date'],
+            'cheque. no./ref. no.': ['cheque. no./ref. no.', 'cheq. no./ref. no.'],
+            'transaction remarks': ['transaction remarks', 'trans remarks'],
+            'deposit amt (inr)': ['deposit amt (inr)', 'deposit amt'],
+            'withdrawal amt (inr)': ['withdrawal amt (inr)', 'withdrawal amt'],
+            'balance (inr)': ['balance (inr)', 'balance']
         }
 
-        # Match columns to their corresponding normalized names
+        # Match columns to their corresponding normalized names using regex patterns
         matched_columns = {}
-        for key, possible_names in column_mappings.items():
-            for name in possible_names:
-                if name in columns:
-                    matched_columns[key] = df.columns[columns.index(name)]
+        for key, variations in column_mappings.items():
+            for variation in variations:
+                closest_match = get_close_matches(variation, df.columns, n=1, cutoff=0.7)  # Adjust cutoff for more or less strict matching
+                if closest_match:
+                    matched_columns[key] = closest_match[0]
                     break
 
         # Check if all required columns are present
@@ -159,7 +161,7 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
                             'transaction posted date', 'cheque. no./ref. no.', 
                             'transaction remarks', 'deposit amt (inr)', 
                             'withdrawal amt (inr)', 'balance (inr)']
-        
+
         if all(col in matched_columns for col in required_columns):
             transaction_id_col = matched_columns['transaction id']
             value_date_col = matched_columns['value date']
@@ -170,83 +172,79 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
             deposit_amt_col = matched_columns['deposit amt (inr)']
             withdrawal_amt_col = matched_columns['withdrawal amt (inr)']
             balance_col = matched_columns['balance (inr)']
-            # Continue processing the data as needed...
 
+            total_revenue_amount = 0
+            total_expenses_amount = 0
+
+            # Iterate over the rows to populate the Finance table
+            for _, row in df.iterrows():
+                transaction_id = row[transaction_id_col] if pd.notnull(row[transaction_id_col]) else None
+                value_date = row[value_date_col] if pd.notnull(row[value_date_col]) else None
+                transaction_date = row[transaction_date_col] if pd.notnull(row[transaction_date_col]) else None
+                transaction_posted_date = row[transaction_posted_date_col] if pd.notnull(row[transaction_posted_date_col]) else None
+                cheque_no = row[cheque_no_col] if pd.notnull(row[cheque_no_col]) else None
+                transaction_remarks = row[transaction_remarks_col] if pd.notnull(row[transaction_remarks_col]) else None
+                withdrawal_amt = row[withdrawal_amt_col] if pd.notnull(row[withdrawal_amt_col]) else None
+                deposit_amt = row[deposit_amt_col] if pd.notnull(row[deposit_amt_col]) else None
+                balance = row[balance_col] if pd.notnull(row[balance_col]) else None
+
+                # Convert withdrawal_amt and deposit_amt to float, handling errors
+                try:
+                    withdrawal_amt = float(withdrawal_amt) if withdrawal_amt else None
+                except ValueError:
+                    withdrawal_amt = None  # Set to None if conversion fails
+
+                try:
+                    deposit_amt = float(deposit_amt) if deposit_amt else None
+                except ValueError:
+                    deposit_amt = None  # Set to None if conversion fails
+
+                # Summing up for calculations
+                total_revenue_amount += deposit_amt if deposit_amt is not None else 0
+                total_expenses_amount += withdrawal_amt if withdrawal_amt is not None else 0
+
+                # Debugging prints to check the values
+                print(f"Processing row with transaction_id='{transaction_id}', transaction_remarks='{transaction_remarks}', deposit_amt={deposit_amt}, withdrawal_amt={withdrawal_amt}")
+
+                new_transaction = Finance(
+                    month=date,
+                    transaction_id=transaction_id,
+                    value_date=value_date,
+                    transaction_date=transaction_date,
+                    transaction_posted_date=transaction_posted_date,
+                    cheque_no_ref_no=cheque_no,
+                    transaction_remarks=transaction_remarks,
+                    withdrawal_amt=withdrawal_amt,
+                    deposit_amt=deposit_amt,
+                    balance=balance
+                )
+                db.add(new_transaction)
+
+            db.commit()
+
+            # Calculating profit, tax, and cess
+            profit = total_revenue_amount - total_expenses_amount
+            tax = profit * 0.25
+            cess = tax * 0.4
+            total_tax = tax + cess
+            profit_after_tax = profit - total_tax
+
+            # Save the calculation to the database
+            new_calculation = Calculation(
+                month=date,
+                profit=profit,
+                tax=tax,
+                cess=cess,
+                total_tax=total_tax,
+                profit_after_tax=profit_after_tax
+            )
+            db.add(new_calculation)
+            db.commit()
+
+            # Return a success message in the template
+            return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "Excel file uploaded successfully!"})
         else:
             return templates.TemplateResponse("upload_excel.html", {"request": request, "error": "The required columns were not found in the uploaded file."})
-
-        total_revenue_amount = 0
-        total_expenses_amount = 0
-        
-        # Iterate over the rows to populate the Finance table
-        for _, row in df.iterrows():
-            transaction_id = row[transaction_id_col] if pd.notnull(row[transaction_id_col]) else None
-            value_date = row[value_date_col] if pd.notnull(row[value_date_col]) else None
-            transaction_date = row[transaction_date_col] if pd.notnull(row[transaction_date_col]) else None
-            transaction_posted_date = row[transaction_posted_date_col] if pd.notnull(row[transaction_posted_date_col]) else None
-            cheque_no = row[cheque_no_col] if pd.notnull(row[cheque_no_col]) else None
-            transaction_remarks = row[transaction_remarks_col] if pd.notnull(row[transaction_remarks_col]) else None
-            withdrawal_amt = row[withdrawal_amt_col] if pd.notnull(row[withdrawal_amt_col]) else None
-            deposit_amt = row[deposit_amt_col] if pd.notnull(row[deposit_amt_col]) else None
-            balance = row[balance_col] if pd.notnull(row[balance_col]) else None
-
-            # Convert withdrawal_amt and deposit_amt to float, handling errors
-            try:
-                withdrawal_amt = float(withdrawal_amt) if withdrawal_amt else 0.0
-            except ValueError:
-                withdrawal_amt = 0.0  # or handle the error as needed
-
-            try:
-                deposit_amt = float(deposit_amt) if deposit_amt else 0.0
-            except ValueError:
-                deposit_amt = 0.0  # or handle the error as needed
-
-            # Summing up for calculations
-            total_revenue_amount += deposit_amt
-            total_expenses_amount += withdrawal_amt
-            
-            # Debugging prints to check the values
-            print(f"Processing row with transaction_id='{transaction_id}', transaction_remarks='{transaction_remarks}', deposit_amt={deposit_amt}, withdrawal_amt={withdrawal_amt}")
-
-            new_transaction = Finance(
-                month=date,
-                transaction_id=transaction_id,
-                value_date=value_date,
-                transaction_date=transaction_date,
-                transaction_posted_date=transaction_posted_date,
-                cheque_no_ref_no=cheque_no,
-                transaction_remarks=transaction_remarks,
-                withdrawal_amt=withdrawal_amt,
-                deposit_amt=deposit_amt,
-                balance=balance
-            )
-            db.add(new_transaction)
-
-        db.commit()
-        
-        # Calculating profit, tax, and cess
-        profit = total_revenue_amount - total_expenses_amount
-        tax = profit * 0.25
-        cess = tax * 0.4
-        total_tax = tax + cess
-        profit_after_tax = profit - total_tax
-
-        # Save the calculation to the database
-        new_calculation = Calculation(
-            month=date,
-            profit=str(profit),
-            tax=str(tax),
-            cess=str(cess),
-            total_tax=str(total_tax),
-            profit_after_tax=str(profit_after_tax)
-        )
-        db.add(new_calculation)
-        db.commit()
-
-        # Return a success message in the template
-        return templates.TemplateResponse("upload_excel.html", {"request": request, "success": "Excel file uploaded successfully!"})
-    else:
-        return templates.TemplateResponse("upload_excel.html", {"request": request, "error": "Unsupported file format. Only XLS, XLSX, and CSV are allowed."})
 
 
 
@@ -322,8 +320,8 @@ async def data_table(request: Request, date: str = Form(...), db: Session = Depe
         transaction_date = row.transaction_date
         if isinstance(transaction_date, datetime):
             transaction_date = transaction_date.strftime('%d-%m-%Y')
-        elif isinstance(transaction_date, str):
-            transaction_date = datetime.strptime(transaction_date, '%Y-%m-%d %H:%M:%S').strftime('%d-%m-%Y')
+        # elif isinstance(transaction_date, str):
+        #     transaction_date = datetime.strptime(transaction_date, '%Y-%m-%d %H:%M:%S').strftime('%d-%m-%Y')
             
         transaction_id = row.transaction_id
         expense_category = row.expenses if row.expenses is not None else ''
