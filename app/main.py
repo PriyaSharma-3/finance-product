@@ -136,15 +136,15 @@ async def upload(request: Request, date: str = Form(...), file: UploadFile = Fil
 
         # Define possible column name variations with regex patterns
         column_mappings = {
-            'transaction id': ['transaction id', 'tran id'],
-            'value date': ['value date', 'val date'],
-            'transaction date': ['transaction date', 'trans date'],
-            'transaction posted date': ['transaction posted date', 'trans posted date'],
-            'cheque. no./ref. no.': ['cheque. no./ref. no.', 'cheq. no./ref. no.'],
-            'transaction remarks': ['transaction remarks', 'trans remarks'],
-            'deposit amt (inr)': ['deposit amt (inr)', 'deposit amt'],
-            'withdrawal amt (inr)': ['withdrawal amt (inr)', 'withdrawal amt'],
-            'balance (inr)': ['balance (inr)', 'balance']
+            'transaction id': ['Tran. Id'],
+            'value date': ['Value Date'],
+            'transaction date': ['Transaction Date'],
+            'transaction posted date': ['Transaction Posted Date'],
+            'cheque. no./ref. no.': ['Cheque. No./Ref. No'],
+            'transaction remarks': ['Transaction Remarks'],
+            'deposit amt (inr)': ['Deposit Amt (INR)'],
+            'withdrawal amt (inr)': ['Withdrawal Amt (INR)'],
+            'balance (inr)': ['Balance (INR)']
         }
 
         # Match columns to their corresponding normalized names using regex patterns
